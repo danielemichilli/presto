@@ -438,7 +438,10 @@ def main():
                     for downfact in downfacts:
                         if useffts: 
                             # Note:  FFT convolution is faster for _all_ downfacts, even 2
-                            goodchunk = Num.convolve(chunk, Num.ones(downfact), mode='same') / Num.sqrt(downfact)
+                            chunk2 = Num.concatenate((Num.zeros(1000), chunk, Num.zeros(1000)))
+                            goodchunk = Num.convolve(chunk2, Num.ones(downfact), mode='same') / Num.sqrt(downfact)
+                            goodchunk = goodchunk[overlap:-overlap]
+                            #O qualcosa di simile, altrimenti non so perche' trova piu' candidati! Controllare!
                         else:
                             # The normalization of this kernel keeps the post-smoothing RMS = 1
                             kernel = Num.ones(downfact, dtype=Num.float32) / \
