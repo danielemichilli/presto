@@ -424,7 +424,7 @@ def main():
                     #        expensive calls in the program.  Best bet would 
                     #        probably be to simply iterate over the goodchunk
                     #        in C and append to the candlist there.
-                    hibins = Num.nonzero(goodchunk>opts.threshold)
+                    hibins = Num.flatnonzero(goodchunk>opts.threshold)
                     hivals = goodchunk[hibins]
                     hibins += chunknum * chunklen
                     hiblocks = hibins/detrendlen
@@ -438,7 +438,7 @@ def main():
                     for downfact in downfacts:
                         if useffts: 
                             # Note:  FFT convolution is faster for _all_ downfacts, even 2
-                            goodchunk = Num.convolve(timeseries, Num.ones(downfact), mode='same') / Num.sqrt(downfact)
+                            goodchunk = Num.convolve(chunk, Num.ones(downfact), mode='same') / Num.sqrt(downfact)
                         else:
                             # The normalization of this kernel keeps the post-smoothing RMS = 1
                             kernel = Num.ones(downfact, dtype=Num.float32) / \
@@ -446,7 +446,7 @@ def main():
                             smoothed_chunk = scipy.signal.convolve(chunk, kernel, 1)
                             goodchunk = smoothed_chunk[overlap:-overlap]
                         #hibins = Num.nonzero(goodchunk>opts.threshold)[0]
-                        hibins = Num.nonzero(goodchunk>opts.threshold)
+                        hibins = Num.flatnonzero(goodchunk>opts.threshold)
                         hivals = goodchunk[hibins]
                         hibins += chunknum * chunklen
                         hiblocks = hibins/detrendlen
