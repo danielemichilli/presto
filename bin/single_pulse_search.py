@@ -2,7 +2,7 @@
 import bisect, os, sys, getopt, infodata, glob
 import scipy, scipy.signal, ppgplot
 import numpy as Num
-from presto import rfft, next2_to_n
+from presto import next2_to_n
 from psr_utils import coord_to_string
 from optparse import OptionParser
 from Pgplot import *
@@ -25,40 +25,6 @@ def cmp_sigma(self, other):
     #Comparison function to sort candidates by significance
     retval = -cmp(self.sigma, other.sigma)
     return retval
-
-def fft_convolve(fftd_data, fftd_kern, lo, hi):
-    """
-    fft_convolve(fftd_data, fftd_kern, lo, hi):
-        Perform a convolution with the complex floating point vectors
-            'fftd_data' and 'fftd_kern'.  The returned vector will start at
-            at bin 'lo' (must be an integer), and go up to but not
-            include bin 'hi' (also an integer).
-    """
-    # Note:  The initial FFTs should be done like:
-    # fftd_kern = rfft(kernel, -1)
-    # fftd_data = rfft(data, -1)
-    prod = Num.multiply(fftd_data, fftd_kern)
-    prod.real[0] = fftd_kern.real[0] * fftd_data.real[0]
-    prod.imag[0] = fftd_kern.imag[0] * fftd_data.imag[0]
-    return rfft(prod, 1)[lo:hi].astype(Num.float32)
-
-def make_fftd_kerns(downfacts, fftlen):
-    fftd_kerns = []
-    for downfact in downfacts:
-        kern = Num.zeros(fftlen, dtype=Num.float32)
-        # These offsets produce kernels that give results
-        # equal to scipy.signal.convolve
-        if downfact % 2:  # Odd number
-            kern[:downfact/2+1] += 1.0
-            kern[-(downfact/2):] += 1.0
-        else:             # Even number
-            kern[:downfact/2+1] += 1.0
-            if (downfact > 2):
-                kern[-(downfact/2-1):] += 1.0
-        # The following normalization preserves the
-        # RMS=1 characteristic of the data
-        fftd_kerns.append(rfft(kern / Num.sqrt(downfact), -1))
-    return fftd_kerns
 
 def prune_related1(hibins, hivals, downfact):
     # Remove candidates that are close to other candidates
@@ -343,8 +309,7 @@ def main():
             if (filenm == args[0]):
                 orig_N = N
                 orig_dt = dt
-                if useffts:
-                    fftd_kerns = make_fftd_kerns(default_downfacts, fftlen)
+
             if info.breaks:
                 offregions = zip([x[1] for x in info.onoff[:-1]],
                                  [x[0] for x in info.onoff[1:]])
@@ -459,7 +424,7 @@ def main():
                     #        expensive calls in the program.  Best bet would 
                     #        probably be to simply iterate over the goodchunk
                     #        in C and append to the candlist there.
-                    hibins = Num.flatnonzero(goodchunk>opts.threshold)
+                    hibins = Num.nonzero(goodchunk>opts.threshold)
                     hivals = goodchunk[hibins]
                     hibins += chunknum * chunklen
                     hiblocks = hibins/detrendlen
@@ -469,15 +434,11 @@ def main():
                             time = bin * dt
                             dm_candlist.append(candidate(info.DM, val, time, bin, 1))
 
-                    # Prepare our data for the convolution
-                    if useffts: fftd_chunk = rfft(chunk, -1)
-
                     # Now do the downsampling...
-                    for ii, downfact in enumerate(downfacts):
+                    for downfact in downfacts:
                         if useffts: 
                             # Note:  FFT convolution is faster for _all_ downfacts, even 2
-                            goodchunk = fft_convolve(fftd_chunk, fftd_kerns[ii],
-                                                     overlap, -overlap)
+                            goodchunk = Num.convolve(timeseries, Num.ones(downfact), mode='same') / Num.sqrt(downfact)
                         else:
                             # The normalization of this kernel keeps the post-smoothing RMS = 1
                             kernel = Num.ones(downfact, dtype=Num.float32) / \
@@ -485,7 +446,7 @@ def main():
                             smoothed_chunk = scipy.signal.convolve(chunk, kernel, 1)
                             goodchunk = smoothed_chunk[overlap:-overlap]
                         #hibins = Num.nonzero(goodchunk>opts.threshold)[0]
-                        hibins = Num.flatnonzero(goodchunk>opts.threshold)
+                        hibins = Num.nonzero(goodchunk>opts.threshold)
                         hivals = goodchunk[hibins]
                         hibins += chunknum * chunklen
                         hiblocks = hibins/detrendlen
